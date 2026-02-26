@@ -24,6 +24,8 @@ JARVIS V2 is a sophisticated AI assistant designed for multimodal interaction. I
 | **🌐 Web Agent** | Autonomous browser automation | Playwright + Chromium |
 | **🏠 Smart Home** | Voice control for TP-Link Kasa devices | `python-kasa` |
 | **📁 Project Memory** | Persistent context across sessions | File-based JSON storage |
+| **📊 System Stats** | Real-time CPU, RAM, GPU, temperature and model context usage panel | `psutil` + `framer-motion` |
+| **🕐 Live Clock** | Live clock displayed in the top toolbar | React state |
 
 ### 🖐️ Gesture Control Details
 
@@ -36,6 +38,19 @@ JARVIS's "Minority Report" interface uses your webcam to detect hand gestures:
 | ✊ **Close Fist** | "Select" and grab a UI window to drag it |
 
 > **Tip**: Enable the video feed window to see the hand tracking overlay.
+
+### 📊 System Stats Panel
+
+A persistent side panel displays real-time system and model metrics:
+
+| Metric | Description |
+|--------|-------------|
+| **CPU** | Processor usage (%) with color-coded warning thresholds |
+| **RAM** | Memory usage (%) |
+| **GPU** | GPU usage (%) — shown only if available |
+| **CPU Temp** | Processor temperature in °C — shown only if available |
+| **Context** | Estimated Gemini context window usage (based on transcript length vs. 1M token limit) |
+| **Session** | Time elapsed since the current JARVIS session started |
 
 ---
 
