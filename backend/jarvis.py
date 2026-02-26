@@ -415,7 +415,7 @@ class AudioLoop:
         # VAD Constants
         VAD_THRESHOLD = 800 # Adj based on mic sensitivity (800 is conservative for 16-bit)
         SILENCE_DURATION = 0.5 # Seconds of silence to consider "done speaking"
-        
+
         while True:
             if self.paused:
                 await asyncio.sleep(0.1)
@@ -423,11 +423,11 @@ class AudioLoop:
 
             try:
                 data = await asyncio.to_thread(self.audio_stream.read, CHUNK_SIZE, **kwargs)
-                
+
                 # 1. Send Audio
                 if self.out_queue:
                     await self.out_queue.put({"data": data, "mime_type": "audio/pcm"})
-                
+
                 # 2. VAD Logic for Video
                 # rms = audioop.rms(data, 2)
                 # Replacement for audioop.rms(data, 2)
@@ -438,28 +438,29 @@ class AudioLoop:
                     rms = int(math.sqrt(sum_squares / count))
                 else:
                     rms = 0
-                
+
+                # 3. VAD Logic for Video
                 if rms > VAD_THRESHOLD:
                     # Speech Detected
                     self._silence_start_time = None
-                    
+
                     if not self._is_speaking:
                         # NEW Speech Utterance Started
                         self._is_speaking = True
                         print(f"[JARVIS DEBUG] [VAD] Speech Detected (RMS: {rms}). Sending Video Frame.")
-                        
+
                         # Send ONE frame
                         if self._latest_image_payload and self.out_queue:
                             await self.out_queue.put(self._latest_image_payload)
                         else:
                             print(f"[JARVIS DEBUG] [VAD] No video frame available to send.")
-                            
+
                 else:
                     # Silence
                     if self._is_speaking:
                         if self._silence_start_time is None:
                             self._silence_start_time = time.time()
-                        
+
                         elif time.time() - self._silence_start_time > SILENCE_DURATION:
                             # Silence confirmed, reset state
                             print(f"[JARVIS DEBUG] [VAD] Silence detected. Resetting speech state.")

@@ -1,7 +1,7 @@
 {
   "name": "jarvis-v2",
   "version": "1.0.0",
-  "description": "J.A.R.V.A.S V2 - AI Assistant",
+  "description": "J.A.R.V.I.S V2 - AI Assistant",
   "main": "electron/main.js",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && npx electron .\"",

@@ -379,7 +379,7 @@ async def stop_audio(sid):
         audio_loop.stop() 
         print("Stopping Audio Loop")
         audio_loop = None
-        await sio.emit('status', {'msg': 'J.A.R.V.A.S Stopped'})
+        await sio.emit('status', {'msg': 'J.A.R.V.I.S Stopped'})
 
 @sio.event
 async def pause_audio(sid):
@@ -717,7 +717,7 @@ async def discover_printers(sid):
             return
         else:
             await sio.emit('printer_list', [])
-            await sio.emit('status', {'msg': "Connect to J.A.R.V.A.S to enable printer discovery"})
+            await sio.emit('status', {'msg': "Connect to J.A.R.V.I.S to enable printer discovery"})
             return
         
     try:
