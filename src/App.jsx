@@ -15,6 +15,7 @@ import AuthLock from './components/AuthLock';
 import KasaWindow from './components/KasaWindow';
 import PrinterWindow from './components/PrinterWindow';
 import SettingsWindow from './components/SettingsWindow';
+import SystemStats from './components/SystemStats';
 
 
 
@@ -66,6 +67,9 @@ function App() {
     const [activePrintStatus, setActivePrintStatus] = useState(null); // {printer, progress_percent, time_elapsed, state}
     const [printerCount, setPrinterCount] = useState(0); // Count of connected printers
     const [currentTime, setCurrentTime] = useState(new Date()); // Live clock
+    const [systemStats, setSystemStats] = useState({ cpu: null, ram: null, gpu: null, cpu_temp: null });
+    const [transcriptChars, setTranscriptChars] = useState(0);
+    const [sessionStartMs, setSessionStartMs] = useState(null);
 
 
     // RESTORED STATE
@@ -331,6 +335,8 @@ function App() {
             // Update status bar based on backend messages
             if (data.msg === 'J.A.R.V.I.S Started') {
                 setStatus('Model Connected');
+                setSessionStartMs(Date.now());
+                setTranscriptChars(0);
             } else if (data.msg === 'J.A.R.V.I.S Stopped') {
                 setStatus('Connected');
             }
@@ -438,8 +444,12 @@ function App() {
             }
         });
 
+        // System resource stats
+        socket.on('system_stats', (data) => setSystemStats(data));
+
         // Handle streaming transcription
         socket.on('transcription', (data) => {
+            setTranscriptChars(prev => prev + (data.text?.length ?? 0));
             setMessages(prev => {
                 const lastMsg = prev[prev.length - 1];
 
@@ -627,6 +637,7 @@ function App() {
             socket.off('cad_status');
             socket.off('browser_frame');
             socket.off('transcription');
+            socket.off('system_stats');
             socket.off('tool_confirmation_request');
             socket.off('kasa_devices');
             socket.off('printer_list');
@@ -1482,6 +1493,15 @@ function App() {
                 {/* Floating Project Label */}
                 <div className="absolute top-[70px] left-1/2 -translate-x-1/2 text-orange-500 text-xs font-mono tracking-widest pointer-events-none z-50 bg-black/50 px-2 py-1 rounded backdrop-blur-sm border border-orange-500/20">
                     PROJECT: {currentProject?.toUpperCase()}
+                </div>
+
+                {/* System & Model Stats — right panel */}
+                <div className="fixed top-12 right-3 z-30 pointer-events-none">
+                    <SystemStats
+                        stats={systemStats}
+                        transcriptChars={transcriptChars}
+                        sessionStartMs={sessionStartMs}
+                    />
                 </div>
 
                 <div

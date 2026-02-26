@@ -16,6 +16,7 @@ import os
 import json
 from datetime import datetime
 from pathlib import Path
+import psutil
 
 
 
@@ -108,6 +109,47 @@ authenticator = None
 kasa_agent = KasaAgent(known_devices=SETTINGS.get("kasa_devices"))
 # tool_permissions is now SETTINGS["tool_permissions"]
 
+async def system_stats_loop():
+    """Emit system resource stats to all clients every 2 seconds."""
+    # Warm-up call so first reading isn't 0
+    psutil.cpu_percent(interval=None)
+    while True:
+        try:
+            cpu  = psutil.cpu_percent(interval=None)
+            ram  = psutil.virtual_memory().percent
+
+            # CPU temperature (Linux/Windows only; not available on macOS)
+            cpu_temp = None
+            try:
+                temps = psutil.sensors_temperatures()
+                if temps:
+                    for entries in temps.values():
+                        if entries:
+                            cpu_temp = round(entries[0].current, 1)
+                            break
+            except (AttributeError, Exception):
+                pass
+
+            # GPU via GPUtil (NVIDIA only; skip gracefully)
+            gpu_percent = None
+            try:
+                import GPUtil
+                gpus = GPUtil.getGPUs()
+                if gpus:
+                    gpu_percent = round(gpus[0].load * 100, 1)
+            except Exception:
+                pass
+
+            await sio.emit('system_stats', {
+                'cpu':      round(cpu, 1),
+                'ram':      round(ram, 1),
+                'gpu':      gpu_percent,
+                'cpu_temp': cpu_temp,
+            })
+        except Exception as e:
+            print(f"[SERVER] system_stats_loop error: {e}")
+        await asyncio.sleep(2)
+
 @app.on_event("startup")
 async def startup_event():
     import sys
@@ -123,6 +165,7 @@ async def startup_event():
 
     print("[SERVER] Startup: Initializing Kasa Agent...")
     await kasa_agent.initialize()
+    asyncio.create_task(system_stats_loop())
 
 @app.get("/status")
 async def status():
