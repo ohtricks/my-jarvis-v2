@@ -909,9 +909,9 @@ function App() {
                         // SNAP HIGHLIGHT Logic
                         closest.el.classList.add('snap-highlight');
                         // Add some inline style for the glow if class isn't enough (using imperative for speed)
-                        closest.el.style.boxShadow = '0 0 20px rgba(34, 211, 238, 0.6)';
-                        closest.el.style.backgroundColor = 'rgba(6, 182, 212, 0.2)';
-                        closest.el.style.borderColor = 'rgba(34, 211, 238, 1)';
+                        closest.el.style.boxShadow = '0 0 20px rgba(255, 117, 24, 0.6)';
+                        closest.el.style.backgroundColor = 'rgba(255, 117, 24, 0.2)';
+                        closest.el.style.borderColor = 'rgba(255, 117, 24, 1)';
                     }
                 }
 
@@ -1343,7 +1343,7 @@ function App() {
 
 
     return (
-        <div className="h-screen w-screen bg-black text-cyan-100 font-mono overflow-hidden flex flex-col relative selection:bg-cyan-900 selection:text-white">
+        <div className="h-screen w-screen bg-black text-orange-100 font-mono overflow-hidden flex flex-col relative selection:bg-orange-900 selection:text-white">
 
             {/* --- PREMIUM UI LAYER --- */}
 
@@ -1369,7 +1369,7 @@ function App() {
             {/* Hand Cursor - Only show if tracking is enabled */}
             {isVideoOn && isHandTrackingEnabled && (
                 <div
-                    className={`fixed w-6 h-6 border-2 rounded-full pointer-events-none z-[100] transition-transform duration-75 ${isPinching ? 'bg-cyan-400 border-cyan-400 scale-75 shadow-[0_0_15px_rgba(34,211,238,0.8)]' : 'border-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.3)]'}`}
+                    className={`fixed w-6 h-6 border-2 rounded-full pointer-events-none z-[100] transition-transform duration-75 ${isPinching ? 'bg-orange-400 border-orange-400 scale-75 shadow-[0_0_15px_rgba(255,117,24,0.8)]' : 'border-orange-400 shadow-[0_0_10px_rgba(255,117,24,0.3)]'}`}
                     style={{
                         left: cursorPos.x,
                         top: cursorPos.y,
@@ -1390,16 +1390,16 @@ function App() {
 
             {/* Ambient Glow (Fixed: Static) */}
             <div
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-cyan-900/10 rounded-full blur-[120px] pointer-events-none"
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-orange-900/10 rounded-full blur-[120px] pointer-events-none"
             />
 
             {/* Top Bar (Draggable) */}
-            <div className="z-50 flex items-center justify-between p-2 border-b border-cyan-500/20 bg-black/40 backdrop-blur-md select-none sticky top-0" style={{ WebkitAppRegion: 'drag' }}>
+            <div className="z-50 flex items-center justify-between p-2 border-b border-orange-500/20 bg-black/40 backdrop-blur-md select-none sticky top-0" style={{ WebkitAppRegion: 'drag' }}>
                 <div className="flex items-center gap-4 pl-2">
-                    <h1 className="text-xl font-bold tracking-[0.2em] text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]">
+                    <h1 className="text-xl font-bold tracking-[0.2em] text-orange-400 drop-shadow-[0_0_10px_rgba(255,117,24,0.5)]">
                         J.A.R.V.I.S
                     </h1>
-                    <div className="text-[10px] text-cyan-700 border border-cyan-900 px-1 rounded">
+                    <div className="text-[10px] text-orange-700 border border-orange-900 px-1 rounded">
                         V2.0.0
                     </div>
                     {/* FPS Counter */}
@@ -1431,14 +1431,14 @@ function App() {
 
                 <div className="flex items-center gap-2 pr-2" style={{ WebkitAppRegion: 'no-drag' }}>
                     {/* Live Clock */}
-                    <div className="flex items-center gap-1.5 text-[11px] text-cyan-300/70 font-mono px-2">
-                        <Clock size={12} className="text-cyan-500/50" />
+                    <div className="flex items-center gap-1.5 text-[11px] text-orange-300/70 font-mono px-2">
+                        <Clock size={12} className="text-orange-500/50" />
                         <span>{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
-                    <button onClick={handleMinimize} className="p-1 hover:bg-cyan-900/50 rounded text-cyan-500 transition-colors">
+                    <button onClick={handleMinimize} className="p-1 hover:bg-orange-900/50 rounded text-orange-500 transition-colors">
                         <Minus size={18} />
                     </button>
-                    <button onClick={handleMaximize} className="p-1 hover:bg-cyan-900/50 rounded text-cyan-500 transition-colors">
+                    <button onClick={handleMaximize} className="p-1 hover:bg-orange-900/50 rounded text-orange-500 transition-colors">
                         <div className="w-[14px] h-[14px] border-2 border-current rounded-[2px]" />
                     </button>
                     <button onClick={handleCloseRequest} className="p-1 hover:bg-red-900/50 rounded text-red-500 transition-colors">
@@ -1469,7 +1469,7 @@ function App() {
                     <div className="relative z-20">
                         <Visualizer
                             audioData={aiAudioData}
-                            isListening={isConnected && !isMuted}
+                            isListening={true}
                             intensity={audioAmp}
                             width={elementSizes.visualizer.w}
                             height={elementSizes.visualizer.h}
@@ -1480,7 +1480,7 @@ function App() {
 
                 {/* Video Feed Overlay */}
                 {/* Floating Project Label */}
-                <div className="absolute top-[70px] left-1/2 -translate-x-1/2 text-cyan-500 text-xs font-mono tracking-widest pointer-events-none z-50 bg-black/50 px-2 py-1 rounded backdrop-blur-sm border border-cyan-500/20">
+                <div className="absolute top-[70px] left-1/2 -translate-x-1/2 text-orange-500 text-xs font-mono tracking-widest pointer-events-none z-50 bg-black/50 px-2 py-1 rounded backdrop-blur-sm border border-orange-500/20">
                     PROJECT: {currentProject?.toUpperCase()}
                 </div>
 
@@ -1494,11 +1494,11 @@ function App() {
                 >
                     <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-5 pointer-events-none mix-blend-overlay"></div>
                     {/* Compact Display Container (1080p Source) */}
-                    <div className="relative border border-cyan-500/30 rounded-lg overflow-hidden shadow-[0_0_20px_rgba(6,182,212,0.1)] w-80 aspect-video bg-black/80">
+                    <div className="relative border border-orange-500/30 rounded-lg overflow-hidden shadow-[0_0_20px_rgba(255,117,24,0.1)] w-80 aspect-video bg-black/80">
                         {/* Hidden Video Element (Source) */}
                         <video ref={videoRef} autoPlay muted className="absolute inset-0 w-full h-full object-cover opacity-0" />
 
-                        <div className="absolute top-2 left-2 text-[10px] text-cyan-400 bg-black/60 backdrop-blur px-2 py-0.5 rounded border border-cyan-500/20 z-10 font-bold tracking-wider">CAM_01</div>
+                        <div className="absolute top-2 left-2 text-[10px] text-orange-400 bg-black/60 backdrop-blur px-2 py-0.5 rounded border border-orange-500/20 z-10 font-bold tracking-wider">CAM_01</div>
 
                         {/* Canvas for Displaying Video + Skeleton (Ensures overlap) */}
                         <canvas
@@ -1553,9 +1553,9 @@ function App() {
                         {/* Drag Handle Header */}
                         <div
                             data-drag-handle
-                            className="h-8 bg-gray-900/80 border-b border-cyan-500/20 flex items-center justify-between px-3 cursor-grab active:cursor-grabbing shrink-0"
+                            className="h-8 bg-gray-900/80 border-b border-orange-500/20 flex items-center justify-between px-3 cursor-grab active:cursor-grabbing shrink-0"
                         >
-                            <span className="text-xs font-bold tracking-widest text-cyan-500/70">CAD PROTOTYPE</span>
+                            <span className="text-xs font-bold tracking-widest text-orange-500/70">CAD PROTOTYPE</span>
                             <button
                                 onClick={() => setShowCadWindow(false)}
                                 className="text-gray-400 hover:text-red-400 hover:bg-red-500/20 p-1 rounded transition-colors"

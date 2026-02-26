@@ -28,7 +28,7 @@ const TopAudioBar = ({ audioData }) => {
                 const percent = value / 255;
                 const barHeight = Math.max(2, percent * height);
 
-                ctx.fillStyle = `rgba(34, 211, 238, ${0.2 + percent * 0.8})`; // Cyan with opacity
+                ctx.fillStyle = `rgba(255, 117, 24, ${0.2 + percent * 0.8})`; // Orange with opacity
 
                 // Right side
                 ctx.fillRect(center + i * (barWidth + gap), (height - barHeight) / 2, barWidth, barHeight);
