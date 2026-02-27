@@ -23,3 +23,5 @@ psutil
 mediapipe
 # CAD Generation
 build123d
+# Mac Desktop Control
+pyautogui

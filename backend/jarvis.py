@@ -180,7 +180,39 @@ iterate_cad_tool = {
     "behavior": "NON_BLOCKING"
 }
 
-tools = [{'google_search': {}}, {"function_declarations": [generate_cad, run_web_agent, create_project_tool, switch_project_tool, list_projects_tool, list_smart_devices_tool, control_light_tool, discover_printers_tool, print_stl_tool, get_print_status_tool, iterate_cad_tool] + tools_list[0]['function_declarations'][1:]}]
+open_on_mac_tool = {
+    "name": "open_on_mac",
+    "description": "Abre apps, URLs, pastas ou arquivos no Mac usando o comando 'open'. Use para abrir Chrome, Safari, Spotify, VS Code, abrir um site no browser padrão do usuário, abrir pasta ou arquivo. Para tarefas simples de abertura, prefira esta tool. Use run_mac_agent apenas quando precisar ler a tela ou fazer interações complexas.",
+    "parameters": {
+        "type": "OBJECT",
+        "properties": {
+            "target": {
+                "type": "STRING",
+                "description": "O que abrir. Exemplos: 'Google Chrome', 'https://mail.google.com', '~/Downloads', 'Spotify', '/caminho/arquivo.pdf'"
+            },
+            "is_app": {
+                "type": "BOOLEAN",
+                "description": "True se for nome de um aplicativo (usa 'open -a'). False se for URL, caminho de arquivo ou pasta."
+            }
+        },
+        "required": ["target"]
+    }
+}
+
+run_mac_agent = {
+    "name": "run_mac_agent",
+    "description": "Controla o Mac diretamente com visão de tela: lê o conteúdo da tela e executa ações. Use quando o usuário pede para ler emails e resumir, preencher formulários, ou qualquer tarefa que exija ver o que está na tela. Para apenas ABRIR algo, use open_on_mac.",
+    "parameters": {
+        "type": "OBJECT",
+        "properties": {
+            "prompt": {"type": "STRING", "description": "Instruções detalhadas da tarefa a executar no Mac."}
+        },
+        "required": ["prompt"]
+    },
+    "behavior": "NON_BLOCKING"
+}
+
+tools = [{'google_search': {}}, {"function_declarations": [generate_cad, run_web_agent, open_on_mac_tool, run_mac_agent, create_project_tool, switch_project_tool, list_projects_tool, list_smart_devices_tool, control_light_tool, discover_printers_tool, print_stl_tool, get_print_status_tool, iterate_cad_tool] + tools_list[0]['function_declarations'][1:]}]
 
 # --- CONFIG UPDATE: Enabled Transcription ---
 config = types.LiveConnectConfig(
@@ -193,13 +225,17 @@ config = types.LiveConnectConfig(
         "Seu criador é o Rafael, e você o chama de 'Kirito'. "
         "Ao responder, use frases completas e concisas para manter um ritmo ágil e a conversa fluindo. "
         "Você tem uma personalidade divertida. "
-        "Você SEMPRE responde em português do Brasil (pt-BR), independentemente do idioma em que for falado.",
+        "Você SEMPRE responde em português do Brasil (pt-BR), independentemente do idioma em que for falado. "
+        "Sempre que for executar uma ação no Mac (abrir aplicativo, abrir URL, controlar a tela), "
+        "confirme verbalmente ANTES de chamar a ferramenta, de forma natural e concisa. "
+        "Exemplos: 'Entendido, abrindo o Chrome agora.', 'Certo, vou abrir o Spotify.', "
+        "'Ok, executando a tarefa no seu Mac.'",
     tools=tools,
     speech_config=types.SpeechConfig(
         language_code="pt-BR",
         voice_config=types.VoiceConfig(
             prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                voice_name="Kore"
+                voice_name="Charon"
             )
         )
     )
@@ -209,18 +245,20 @@ pya = pyaudio.PyAudio()
 
 from cad_agent import CadAgent
 from web_agent import WebAgent
+from mac_agent import MacAgent
 from kasa_agent import KasaAgent
 from printer_agent import PrinterAgent
 
 class AudioLoop:
-    def __init__(self, video_mode=DEFAULT_MODE, on_audio_data=None, on_video_frame=None, on_cad_data=None, on_web_data=None, on_transcription=None, on_tool_confirmation=None, on_cad_status=None, on_cad_thought=None, on_project_update=None, on_device_update=None, on_error=None, input_device_index=None, input_device_name=None, output_device_index=None, kasa_agent=None):
+    def __init__(self, video_mode=DEFAULT_MODE, on_audio_data=None, on_video_frame=None, on_cad_data=None, on_web_data=None, on_mac_data=None, on_transcription=None, on_tool_confirmation=None, on_cad_status=None, on_cad_thought=None, on_project_update=None, on_device_update=None, on_error=None, input_device_index=None, input_device_name=None, output_device_index=None, kasa_agent=None):
         self.video_mode = video_mode
         self.on_audio_data = on_audio_data
         self.on_video_frame = on_video_frame
         self.on_cad_data = on_cad_data
         self.on_web_data = on_web_data
+        self.on_mac_data = on_mac_data
         self.on_transcription = on_transcription
-        self.on_tool_confirmation = on_tool_confirmation 
+        self.on_tool_confirmation = on_tool_confirmation
         self.on_cad_status = on_cad_status
         self.on_cad_thought = on_cad_thought
         self.on_project_update = on_project_update
@@ -257,6 +295,7 @@ class AudioLoop:
         
         self.cad_agent = CadAgent(on_thought=handle_cad_thought, on_status=handle_cad_status)
         self.web_agent = WebAgent()
+        self.mac_agent = MacAgent()
         self.kasa_agent = kasa_agent if kasa_agent else KasaAgent()
         self.printer_agent = PrinterAgent()
 
@@ -625,20 +664,35 @@ class AudioLoop:
 
     async def handle_web_agent_request(self, prompt):
         print(f"[JARVIS DEBUG] [WEB] Web Agent Task: '{prompt}'")
-        
+
         async def update_frontend(image_b64, log_text):
             if self.on_web_data:
                  self.on_web_data({"image": image_b64, "log": log_text})
-                 
+
         # Run the web agent and wait for it to return
         result = await self.web_agent.run_task(prompt, update_callback=update_frontend)
         print(f"[JARVIS DEBUG] [WEB] Web Agent Task Returned: {result}")
-        
+
         # Send the final result back to the main model
         try:
              await self.session.send(input=f"System Notification: Web Agent has finished.\nResult: {result}", end_of_turn=True)
         except Exception as e:
              print(f"[JARVIS DEBUG] [ERR] Failed to send web agent result to model: {e}")
+
+    async def handle_mac_agent_request(self, prompt):
+        print(f"[JARVIS DEBUG] [MAC] Mac Agent Task: '{prompt}'")
+
+        async def update_frontend(image_b64, log_text):
+            if self.on_mac_data:
+                self.on_mac_data({"image": image_b64, "log": log_text})
+
+        result = await self.mac_agent.run_task(prompt, update_callback=update_frontend)
+        print(f"[JARVIS DEBUG] [MAC] Mac Agent Task Returned: {result}")
+
+        try:
+            await self.session.send(input=f"System Notification: Mac Agent concluído.\nResultado: {result}", end_of_turn=True)
+        except Exception as e:
+            print(f"[JARVIS DEBUG] [ERR] Failed to send mac agent result to model: {e}")
 
     async def receive_audio(self):
         "Background task to reads from the websocket and write pcm chunks to the output queue"
@@ -721,7 +775,7 @@ class AudioLoop:
                         print("The tool was called")
                         function_responses = []
                         for fc in response.tool_call.function_calls:
-                            if fc.name in ["generate_cad", "run_web_agent", "write_file", "read_directory", "read_file", "create_project", "switch_project", "list_projects", "list_smart_devices", "control_light", "discover_printers", "print_stl", "get_print_status", "iterate_cad"]:
+                            if fc.name in ["generate_cad", "open_on_mac", "run_mac_agent", "run_web_agent", "write_file", "read_directory", "read_file", "create_project", "switch_project", "list_projects", "list_smart_devices", "control_light", "discover_printers", "print_stl", "get_print_status", "iterate_cad"]:
                                 prompt = fc.args.get("prompt", "") # Prompt is not present for all tools
                                 
                                 # Check Permissions (Default to True if not set)
@@ -789,10 +843,48 @@ class AudioLoop:
                                     asyncio.create_task(self.handle_cad_request(prompt))
                                     # No function response needed - model already acknowledged when user asked
                                 
+                                elif fc.name == "open_on_mac":
+                                    target = fc.args.get("target", "")
+                                    is_app = fc.args.get("is_app", True)
+                                    print(f"[MAC OPEN] >>> Executando open_on_mac: target='{target}' is_app={is_app}")
+                                    try:
+                                        if is_app:
+                                            # AppleScript: abre E ativa o app (mais confiável que 'open -a')
+                                            script = f'tell application "{target}" to activate'
+                                            print(f"[MAC OPEN] Comando: osascript -e '{script}'")
+                                            proc = await asyncio.create_subprocess_exec(
+                                                'osascript', '-e', script,
+                                                stdout=asyncio.subprocess.PIPE,
+                                                stderr=asyncio.subprocess.PIPE
+                                            )
+                                        else:
+                                            # URL ou caminho de arquivo
+                                            print(f"[MAC OPEN] Comando: open '{target}'")
+                                            proc = await asyncio.create_subprocess_exec(
+                                                'open', target,
+                                                stdout=asyncio.subprocess.PIPE,
+                                                stderr=asyncio.subprocess.PIPE
+                                            )
+                                        stdout, stderr = await proc.communicate()
+                                        ok = proc.returncode == 0
+                                        stdout_str = stdout.decode().strip()
+                                        stderr_str = stderr.decode().strip()
+                                        print(f"[MAC OPEN] returncode={proc.returncode} stdout='{stdout_str}' stderr='{stderr_str}'")
+                                        msg = f"Aberto: {target}" if ok else f"Erro ao abrir '{target}': {stderr_str}"
+                                    except Exception as e:
+                                        msg = f"Exceção ao abrir '{target}': {e}"
+                                        print(f"[MAC OPEN] EXCEÇÃO: {e}")
+                                    print(f"[MAC OPEN] Resultado final: {msg}")
+                                    function_response = types.FunctionResponse(
+                                        id=fc.id, name=fc.name,
+                                        response={"result": msg}
+                                    )
+                                    function_responses.append(function_response)
+
                                 elif fc.name == "run_web_agent":
                                     print(f"[ADA DEBUG] [TOOL] Tool Call: 'run_web_agent' with prompt='{prompt}'")
                                     asyncio.create_task(self.handle_web_agent_request(prompt))
-                                    
+
                                     result_text = "Web Navigation started. Do not reply to this message."
                                     function_response = types.FunctionResponse(
                                         id=fc.id,
@@ -802,6 +894,16 @@ class AudioLoop:
                                         }
                                     )
                                     print(f"[ADA DEBUG] [RESPONSE] Sending function response: {function_response}")
+                                    function_responses.append(function_response)
+
+                                elif fc.name == "run_mac_agent":
+                                    print(f"[ADA DEBUG] [TOOL] Tool Call: 'run_mac_agent' with prompt='{prompt}'")
+                                    asyncio.create_task(self.handle_mac_agent_request(prompt))
+                                    function_response = types.FunctionResponse(
+                                        id=fc.id,
+                                        name=fc.name,
+                                        response={"result": "Controle do Mac iniciado. Não responda a esta mensagem."}
+                                    )
                                     function_responses.append(function_response)
 
 

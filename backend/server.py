@@ -63,6 +63,8 @@ DEFAULT_SETTINGS = {
     "tool_permissions": {
         "generate_cad": True,
         "run_web_agent": True,
+        "open_on_mac": False,
+        "run_mac_agent": True,
         "write_file": True,
         "read_directory": True,
         "read_file": True,
@@ -266,6 +268,11 @@ async def start_audio(sid, data=None):
     def on_web_data(data):
         print(f"Sending Browser data to frontend: {len(data.get('log', ''))} chars logs")
         asyncio.create_task(sio.emit('browser_frame', data))
+
+    # Callback to send Mac Agent data to frontend
+    def on_mac_data(data):
+        print(f"Sending Mac Agent data to frontend: {len(data.get('log', ''))} chars logs")
+        asyncio.create_task(sio.emit('mac_frame', data))
         
     # Callback to send Transcription data to frontend
     def on_transcription(data):
@@ -315,10 +322,11 @@ async def start_audio(sid, data=None):
     try:
         print(f"Initializing AudioLoop with device_index={device_index}")
         audio_loop = jarvis.AudioLoop(
-            video_mode="none", 
+            video_mode="none",
             on_audio_data=on_audio_data,
             on_cad_data=on_cad_data,
             on_web_data=on_web_data,
+            on_mac_data=on_mac_data,
             on_transcription=on_transcription,
             on_tool_confirmation=on_tool_confirmation,
             on_cad_status=on_cad_status,

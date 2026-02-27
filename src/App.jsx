@@ -54,6 +54,7 @@ function App() {
     const [cadThoughts, setCadThoughts] = useState(''); // Streaming AI thoughts
     const [cadRetryInfo, setCadRetryInfo] = useState({ attempt: 1, maxAttempts: 3, error: null }); // Retry status
     const [browserData, setBrowserData] = useState({ image: null, logs: [] });
+    const [macData, setMacData] = useState({ image: null, logs: [] });
     // showMemoryPrompt removed - memory is now actively saved to project
     const [confirmationRequest, setConfirmationRequest] = useState(null); // { id, tool, args }
     const [kasaDevices, setKasaDevices] = useState([]);
@@ -61,6 +62,7 @@ function App() {
     const [showPrinterWindow, setShowPrinterWindow] = useState(false);
     const [showCadWindow, setShowCadWindow] = useState(false);
     const [showBrowserWindow, setShowBrowserWindow] = useState(false);
+    const [showMacWindow, setShowMacWindow] = useState(false);
 
     // Printing workflow status (for top toolbar display)
     const [slicingStatus, setSlicingStatus] = useState({ active: false, percent: 0, message: '' });
@@ -444,6 +446,14 @@ function App() {
             }
         });
 
+        socket.on('mac_frame', (data) => {
+            setMacData(prev => ({
+                image: data.image || prev.image,
+                logs: [...prev.logs, data.log].filter(l => l).slice(-50)
+            }));
+            setShowMacWindow(true);
+        });
+
         // System resource stats
         socket.on('system_stats', (data) => setSystemStats(data));
 
@@ -636,6 +646,7 @@ function App() {
             socket.off('cad_thought');
             socket.off('cad_status');
             socket.off('browser_frame');
+            socket.off('mac_frame');
             socket.off('transcription');
             socket.off('system_stats');
             socket.off('tool_confirmation_request');
@@ -1629,6 +1640,37 @@ function App() {
                 )}
 
 
+                {/* Mac Agent Window */}
+                {showMacWindow && (
+                    <div
+                        id="mac"
+                        className={`absolute flex flex-col transition-all duration-200
+                        backdrop-blur-xl bg-black/40 border border-white/10 shadow-2xl overflow-hidden rounded-lg
+                        ${activeDragElement === 'mac' ? 'ring-2 ring-green-500 bg-green-500/10' : ''}
+                    `}
+                        style={{
+                            left: elementPositions.browser?.x ? elementPositions.browser.x + 40 : window.innerWidth / 2 + 40,
+                            top: elementPositions.browser?.y ? elementPositions.browser.y + 40 : window.innerHeight / 2 + 40,
+                            transform: 'translate(-50%, -50%)',
+                            width: `${elementSizes.browser.w}px`,
+                            height: `${elementSizes.browser.h}px`,
+                            pointerEvents: 'auto',
+                            zIndex: getZIndex('browser') + 1
+                        }}
+                        onMouseDown={(e) => handleMouseDown(e, 'mac')}
+                    >
+                        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none mix-blend-overlay z-10"></div>
+                        <div className="relative z-20 w-full h-full">
+                            <BrowserWindow
+                                imageSrc={macData.image}
+                                logs={macData.logs}
+                                onClose={() => setShowMacWindow(false)}
+                                socket={socket}
+                            />
+                        </div>
+                    </div>
+                )}
+
                 {/* Chat Module */}
                 <ChatModule
                     messages={messages}
@@ -1664,6 +1706,8 @@ function App() {
                         showCadWindow={showCadWindow}
                         onToggleBrowser={() => setShowBrowserWindow(!showBrowserWindow)}
                         showBrowserWindow={showBrowserWindow}
+                        onToggleMac={() => setShowMacWindow(!showMacWindow)}
+                        showMacWindow={showMacWindow}
                         activeDragElement={activeDragElement}
                         position={elementPositions.tools}
                         onMouseDown={(e) => handleMouseDown(e, 'tools')}

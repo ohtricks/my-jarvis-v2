@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, MicOff, Settings, Power, Video, VideoOff, Hand, Lightbulb, Printer, Globe, Box } from 'lucide-react';
+import { Mic, MicOff, Settings, Power, Video, VideoOff, Hand, Lightbulb, Printer, Globe, Box, Monitor } from 'lucide-react';
 
 const ToolsModule = ({
     isConnected,
@@ -21,6 +21,8 @@ const ToolsModule = ({
     showCadWindow,
     onToggleBrowser,
     showBrowserWindow,
+    onToggleMac,
+    showMacWindow,
     activeDragElement,
 
     position,
@@ -140,6 +142,18 @@ const ToolsModule = ({
                         } `}
                 >
                     <Globe size={24} />
+                </button>
+
+                {/* Mac Agent Toggle */}
+                <button
+                    onClick={onToggleMac}
+                    className={`p-3 rounded-full border-2 transition-all duration-300 ${showMacWindow
+                        ? 'border-violet-400 bg-violet-400/10 text-violet-400 hover:bg-violet-400/20 shadow-[0_0_15px_rgba(167,139,250,0.3)]'
+                        : 'border-cyan-900 text-cyan-700 hover:border-violet-500 hover:text-violet-500'
+                        } `}
+                    title="Mac Agent"
+                >
+                    <Monitor size={24} />
                 </button>
             </div>
         </div>

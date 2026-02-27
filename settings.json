@@ -3,6 +3,8 @@
     "tool_permissions": {
         "generate_cad": true,
         "run_web_agent": true,
+        "open_on_mac": false,
+        "run_mac_agent": true,
         "write_file": true,
         "read_directory": true,
         "read_file": true,
