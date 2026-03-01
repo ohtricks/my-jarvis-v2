@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import io from 'socket.io-client';
 
 import Visualizer from './components/Visualizer';
@@ -16,6 +16,7 @@ import KasaWindow from './components/KasaWindow';
 import PrinterWindow from './components/PrinterWindow';
 import SettingsWindow from './components/SettingsWindow';
 import SystemStats from './components/SystemStats';
+import PerformanceMonitor from './components/PerformanceMonitor';
 
 
 
@@ -23,6 +24,10 @@ const socket = io('http://localhost:8000');
 const { ipcRenderer } = window.require('electron');
 
 function App() {
+    // Render counter para o PerformanceMonitor (não causa re-render)
+    const renderCount = useRef(0);
+    renderCount.current++;
+
     const [status, setStatus] = useState('Disconnected');
     const [socketConnected, setSocketConnected] = useState(socket.connected); // Track socket connection reactively
     // Auth State
@@ -74,10 +79,9 @@ function App() {
     const [sessionStartMs, setSessionStartMs] = useState(null);
 
 
-    // RESTORED STATE
-    const [aiAudioData, setAiAudioData] = useState(new Array(64).fill(0));
-    const [micAudioData, setMicAudioData] = useState(new Array(32).fill(0));
     const [fps, setFps] = useState(0);
+    // Mic audio data lives in a ref — TopAudioBar reads it directly in its own RAF loop
+    const micAudioDataRef = useRef(new Uint8Array(32));
 
     // Device states - microphones, speakers, webcams
     const [micDevices, setMicDevices] = useState([]);
@@ -122,11 +126,13 @@ function App() {
     ]);
 
     // Hand Control State
-    const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
-    const [isPinching, setIsPinching] = useState(false);
     const [isHandTrackingEnabled, setIsHandTrackingEnabled] = useState(false); // DEFAULT OFF
     const [cursorSensitivity, setCursorSensitivity] = useState(2.0);
     const [isCameraFlipped, setIsCameraFlipped] = useState(false); // Gesture control camera flip
+
+    // Hand cursor DOM ref — position updated imperatively to avoid App re-renders
+    const cursorDomRef = useRef(null);
+    const isPinchingRef = useRef(false);
 
     // Refs for Loop Access (Avoiding Closure Staleness)
     const isHandTrackingEnabledRef = useRef(false); // DEFAULT OFF
@@ -177,6 +183,40 @@ function App() {
         isCameraFlippedRef.current = isCameraFlipped;
         console.log("[Ref Sync] Camera flipped ref updated to:", isCameraFlipped);
     }, [isModularMode, elementPositions, isHandTrackingEnabled, cursorSensitivity, isCameraFlipped]);
+
+    // Enumerate media devices — called on mount, on devicechange, and manually via Refresh button
+    const loadDevices = useCallback(async () => {
+        const devs = await navigator.mediaDevices.enumerateDevices();
+        const audioInputs  = devs.filter(d => d.kind === 'audioinput');
+        const audioOutputs = devs.filter(d => d.kind === 'audiooutput');
+        const videoInputs  = devs.filter(d => d.kind === 'videoinput');
+
+        setMicDevices(audioInputs);
+        setSpeakerDevices(audioOutputs);
+        setWebcamDevices(videoInputs);
+
+        const savedMicId = localStorage.getItem('selectedMicId');
+        if (savedMicId && audioInputs.some(d => d.deviceId === savedMicId)) {
+            setSelectedMicId(savedMicId);
+        } else if (audioInputs.length > 0) {
+            setSelectedMicId(prev => prev || audioInputs[0].deviceId);
+        }
+
+        const savedSpeakerId = localStorage.getItem('selectedSpeakerId');
+        if (savedSpeakerId && audioOutputs.some(d => d.deviceId === savedSpeakerId)) {
+            setSelectedSpeakerId(savedSpeakerId);
+        } else if (audioOutputs.length > 0) {
+            setSelectedSpeakerId(prev => prev || audioOutputs[0].deviceId);
+        }
+
+        const savedWebcamId = localStorage.getItem('selectedWebcamId');
+        if (savedWebcamId && videoInputs.some(d => d.deviceId === savedWebcamId)) {
+            setSelectedWebcamId(savedWebcamId);
+        } else if (videoInputs.length > 0) {
+            setSelectedWebcamId(prev => prev || videoInputs[0].deviceId);
+        }
+    }, [setMicDevices, setSpeakerDevices, setWebcamDevices,
+        setSelectedMicId, setSelectedSpeakerId, setSelectedWebcamId]);
 
     // Live Clock Update
     useEffect(() => {
@@ -342,9 +382,6 @@ function App() {
             } else if (data.msg === 'J.A.R.V.I.S Stopped') {
                 setStatus('Connected');
             }
-        });
-        socket.on('audio_data', (data) => {
-            setAiAudioData(data.data);
         });
         socket.on('auth_status', (data) => {
             console.log("Auth Status:", data);
@@ -562,40 +599,9 @@ function App() {
 
 
 
-        // Get All Media Devices (Microphones, Speakers, Webcams)
-        navigator.mediaDevices.enumerateDevices().then(devs => {
-            const audioInputs = devs.filter(d => d.kind === 'audioinput');
-            const audioOutputs = devs.filter(d => d.kind === 'audiooutput');
-            const videoInputs = devs.filter(d => d.kind === 'videoinput');
-
-            setMicDevices(audioInputs);
-            setSpeakerDevices(audioOutputs);
-            setWebcamDevices(videoInputs);
-
-            // Restore saved microphone or use first available
-            const savedMicId = localStorage.getItem('selectedMicId');
-            if (savedMicId && audioInputs.some(d => d.deviceId === savedMicId)) {
-                setSelectedMicId(savedMicId);
-            } else if (audioInputs.length > 0) {
-                setSelectedMicId(audioInputs[0].deviceId);
-            }
-
-            // Restore saved speaker or use first available
-            const savedSpeakerId = localStorage.getItem('selectedSpeakerId');
-            if (savedSpeakerId && audioOutputs.some(d => d.deviceId === savedSpeakerId)) {
-                setSelectedSpeakerId(savedSpeakerId);
-            } else if (audioOutputs.length > 0) {
-                setSelectedSpeakerId(audioOutputs[0].deviceId);
-            }
-
-            // Restore saved webcam or use first available
-            const savedWebcamId = localStorage.getItem('selectedWebcamId');
-            if (savedWebcamId && videoInputs.some(d => d.deviceId === savedWebcamId)) {
-                setSelectedWebcamId(savedWebcamId);
-            } else if (videoInputs.length > 0) {
-                setSelectedWebcamId(videoInputs[0].deviceId);
-            }
-        });
+        // Load media devices on mount and listen for new devices (e.g. Bluetooth headphones)
+        loadDevices();
+        navigator.mediaDevices.addEventListener('devicechange', loadDevices);
 
         // Initialize Hand Landmarker
         const initHandLandmarker = async () => {
@@ -656,10 +662,11 @@ function App() {
             socket.off('print_status_update');
             socket.off('error');
 
+            navigator.mediaDevices.removeEventListener('devicechange', loadDevices);
             stopMicVisualizer();
             stopVideo();
         };
-    }, []);
+    }, [loadDevices]);
 
     // Initial check in case we are already connected (fix race condition)
     useEffect(() => {
@@ -716,7 +723,7 @@ function App() {
                 if (!analyserRef.current) return;
                 const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
                 analyserRef.current.getByteFrequencyData(dataArray);
-                setMicAudioData(Array.from(dataArray));
+                micAudioDataRef.current = dataArray;
                 animationFrameRef.current = requestAnimationFrame(updateMicData);
             };
 
@@ -836,11 +843,6 @@ function App() {
             if (results.landmarks && results.landmarks.length > 0) {
                 const landmarks = results.landmarks[0];
 
-                // Log on first detection
-                if (cursorPos.x === 0 && cursorPos.y === 0) {
-                    console.log("First hand detection!", landmarks);
-                }
-
                 // Index Finger Tip (8)
                 const indexTip = landmarks[8];
                 // Thumb Tip (4)
@@ -937,8 +939,11 @@ function App() {
                     }
                 }
 
-                // Update Cursor Loop
-                setCursorPos({ x: finalX, y: finalY });
+                // Update Cursor (imperative DOM — zero React re-renders)
+                if (cursorDomRef.current) {
+                    cursorDomRef.current.style.left = finalX + 'px';
+                    cursorDomRef.current.style.top  = finalY + 'px';
+                }
 
                 // Trail Logic: Removed per user request
 
@@ -948,7 +953,7 @@ function App() {
                 );
 
                 const isPinchNow = distance < 0.05; // Threshold
-                if (isPinchNow && !isPinching) {
+                if (isPinchNow && !isPinchingRef.current) {
                     // Click Triggered
                     console.log("Click triggered at", finalX, finalY);
 
@@ -965,7 +970,20 @@ function App() {
                         }
                     }
                 }
-                setIsPinching(isPinchNow);
+                isPinchingRef.current = isPinchNow;
+                if (cursorDomRef.current) {
+                    if (isPinchNow) {
+                        cursorDomRef.current.style.backgroundColor = 'rgba(251,146,60,0.8)';
+                        cursorDomRef.current.style.borderColor = 'rgb(251,146,60)';
+                        cursorDomRef.current.style.transform = 'translate(-50%,-50%) scale(0.75)';
+                        cursorDomRef.current.style.boxShadow = '0 0 15px rgba(255,117,24,0.8)';
+                    } else {
+                        cursorDomRef.current.style.backgroundColor = 'transparent';
+                        cursorDomRef.current.style.borderColor = 'rgb(251,146,60)';
+                        cursorDomRef.current.style.transform = 'translate(-50%,-50%)';
+                        cursorDomRef.current.style.boxShadow = '0 0 10px rgba(255,117,24,0.3)';
+                    }
+                }
 
                 // Fist Detection for Gesture-Based Dragging (Popup Windows Only)
                 // Detects if all fingers are folded (tips closer to wrist than MCPs)
@@ -1347,8 +1365,6 @@ function App() {
         window.removeEventListener('mouseup', handleMouseUp);
     };
 
-    // Calculate Average Audio Amplitude for Background Pulse
-    const audioAmp = aiAudioData.reduce((a, b) => a + b, 0) / aiAudioData.length / 255;
 
     const toggleKasaWindow = () => {
         if (!showKasaWindow) {
@@ -1366,6 +1382,9 @@ function App() {
 
     return (
         <div className="h-screen w-screen bg-black text-orange-100 font-mono overflow-hidden flex flex-col relative selection:bg-orange-900 selection:text-white">
+
+            {/* Performance Monitor — toggle com Ctrl+P */}
+            <PerformanceMonitor socket={socket} renderCount={renderCount} />
 
             {/* --- PREMIUM UI LAYER --- */}
 
@@ -1391,11 +1410,16 @@ function App() {
             {/* Hand Cursor - Only show if tracking is enabled */}
             {isVideoOn && isHandTrackingEnabled && (
                 <div
-                    className={`fixed w-6 h-6 border-2 rounded-full pointer-events-none z-[100] transition-transform duration-75 ${isPinching ? 'bg-orange-400 border-orange-400 scale-75 shadow-[0_0_15px_rgba(255,117,24,0.8)]' : 'border-orange-400 shadow-[0_0_10px_rgba(255,117,24,0.3)]'}`}
+                    ref={cursorDomRef}
+                    className="fixed w-6 h-6 border-2 rounded-full pointer-events-none z-[100]"
                     style={{
-                        left: cursorPos.x,
-                        top: cursorPos.y,
-                        transform: 'translate(-50%, -50%)'
+                        left: 0,
+                        top: 0,
+                        transform: 'translate(-50%, -50%)',
+                        backgroundColor: 'transparent',
+                        borderColor: 'rgb(251,146,60)',
+                        boxShadow: '0 0 10px rgba(255,117,24,0.3)',
+                        transition: 'box-shadow 75ms, background-color 75ms',
                     }}
                 >
                     {/* Center Dot for precision */}
@@ -1448,7 +1472,7 @@ function App() {
 
                 {/* Top Visualizer (User Mic) */}
                 <div className="flex-1 flex justify-center mx-4">
-                    <TopAudioBar audioData={micAudioData} />
+                    <TopAudioBar audioDataRef={micAudioDataRef} />
                 </div>
 
                 <div className="flex items-center gap-2 pr-2" style={{ WebkitAppRegion: 'no-drag' }}>
@@ -1490,9 +1514,8 @@ function App() {
                     <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none mix-blend-overlay z-10"></div>
                     <div className="relative z-20">
                         <Visualizer
-                            audioData={aiAudioData}
+                            socket={socket}
                             isListening={true}
-                            intensity={audioAmp}
                             width={elementSizes.visualizer.w}
                             height={elementSizes.visualizer.h}
                         />
@@ -1558,6 +1581,7 @@ function App() {
                         isCameraFlipped={isCameraFlipped}
                         setIsCameraFlipped={setIsCameraFlipped}
                         handleFileUpload={handleFileUpload}
+                        onRefreshDevices={loadDevices}
                         onClose={() => setShowSettings(false)}
                     />
                 )}

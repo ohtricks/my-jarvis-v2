@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, RefreshCw } from 'lucide-react';
 
 const TOOLS = [
     { id: 'generate_cad', label: 'Generate CAD' },
@@ -34,6 +34,7 @@ const SettingsWindow = ({
     isCameraFlipped,
     setIsCameraFlipped,
     handleFileUpload,
+    onRefreshDevices,
     onClose
 }) => {
     const [permissions, setPermissions] = useState({});
@@ -115,7 +116,17 @@ const SettingsWindow = ({
 
             {/* Microphone Section */}
             <div className="mb-4">
-                <h3 className="text-cyan-400 font-bold mb-2 text-xs uppercase tracking-wider opacity-80">Microphone</h3>
+                <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-cyan-400 font-bold text-xs uppercase tracking-wider opacity-80">Microphone</h3>
+                    <button
+                        onClick={onRefreshDevices}
+                        title="Atualizar dispositivos de áudio/vídeo"
+                        className="flex items-center gap-1 text-[10px] text-cyan-500 hover:text-cyan-300 transition-colors"
+                    >
+                        <RefreshCw size={11} />
+                        Refresh
+                    </button>
+                </div>
                 <select
                     value={selectedMicId}
                     onChange={(e) => setSelectedMicId(e.target.value)}

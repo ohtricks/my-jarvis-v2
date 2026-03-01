@@ -11,14 +11,26 @@ const RING_DEFS = [
     { count: 48, radiusMult: 1.88, speed:  0.12, size: 1.1, waveFreq: 9 },
 ];
 
-const Visualizer = ({ audioData, isListening, intensity = 0, width = 600, height = 400 }) => {
+const Visualizer = ({ socket, isListening = true, intensity = 0, width = 600, height = 400 }) => {
     const canvasRef   = useRef(null);
     const stateRef    = useRef({ isListening, intensity });
     const particleRef = useRef([]);
 
     useEffect(() => {
-        stateRef.current = { isListening, intensity };
-    }, [isListening, intensity]);
+        stateRef.current.isListening = isListening;
+    }, [isListening]);
+
+    // Consume audio_data directly — bypasses App state entirely
+    useEffect(() => {
+        if (!socket) return;
+        const handler = (data) => {
+            const arr = data.data;
+            const avg = arr.reduce((a, b) => a + b, 0) / arr.length / 255;
+            stateRef.current.intensity = avg;
+        };
+        socket.on('audio_data', handler);
+        return () => socket.off('audio_data', handler);
+    }, [socket]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
