@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Lock, Unlock, User } from 'lucide-react';
 
 const AuthLock = ({ socket, onAuthenticated, onAnimationComplete }) => {
@@ -19,6 +19,7 @@ const AuthLock = ({ socket, onAuthenticated, onAnimationComplete }) => {
                 // Wait for animation then notify parent
                 setTimeout(() => {
                     onAuthenticated(true);
+                    if (onAnimationComplete) onAnimationComplete();
                 }, 2000); // 2 seconds animation
             } else if (!data.authenticated && !isUnlocking) {
                 setMessage("Look at the camera to unlock.");

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      width: 240px;
+      padding: 14px 16px 16px;
+      font-family: monospace;
+      background: #0a0a0a;
+      color: #f97316;
+      margin: 0;
+    }
+
+    h3 {
+      margin: 0 0 12px;
+      font-size: 13px;
+      letter-spacing: 0.18em;
+      color: #fb923c;
+    }
+
+    /* ── Status de conexão ── */
+    .conn-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      margin-bottom: 14px;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #6b7280;
+      flex-shrink: 0;
+    }
+    .dot.connected { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+
+    /* ── Divisor ── */
+    hr {
+      border: none;
+      border-top: 1px solid #1f1f1f;
+      margin: 0 0 12px;
+    }
+
+    /* ── Task box ── */
+    .task-box { display: none; }
+    .task-box.visible { display: block; }
+
+    .task-label {
+      font-size: 11px;
+      color: #d97706;
+      margin-bottom: 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: 0.03em;
+    }
+
+    .progress-track {
+      background: #1a1a1a;
+      border-radius: 4px;
+      height: 6px;
+      width: 100%;
+      overflow: hidden;
+      border: 1px solid #2a2a2a;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #f97316, #fb923c);
+      border-radius: 4px;
+      transition: width 0.4s ease;
+      box-shadow: 0 0 6px rgba(249,115,22,0.5);
+    }
+
+    .progress-fill.pulse {
+      animation: pulse-glow 1.2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 4px rgba(249,115,22,0.4); }
+      50%       { box-shadow: 0 0 10px rgba(249,115,22,0.9); }
+    }
+
+    .progress-pct {
+      font-size: 10px;
+      color: #6b7280;
+      text-align: right;
+      margin-top: 4px;
+    }
+
+    /* ── Hint ── */
+    .hint {
+      font-size: 11px;
+      color: #374151;
+      margin-top: 12px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <h3>J.A.R.V.I.S</h3>
+
+  <div class="conn-row">
+    <div class="dot" id="dot"></div>
+    <span id="conn-label">Verificando...</span>
+  </div>
+
+  <hr>
+
+  <div class="task-box" id="task-box">
+    <div class="task-label" id="task-label">—</div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+    <div class="progress-pct" id="progress-pct">0%</div>
+  </div>
+
+  <p class="hint" id="hint"></p>
+
+  <script src="popup.js"></script>
+</body>
+</html>

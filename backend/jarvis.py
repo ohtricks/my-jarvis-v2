@@ -212,7 +212,26 @@ run_mac_agent = {
     "behavior": "NON_BLOCKING"
 }
 
-tools = [{'google_search': {}}, {"function_declarations": [generate_cad, run_web_agent, open_on_mac_tool, run_mac_agent, create_project_tool, switch_project_tool, list_projects_tool, list_smart_devices_tool, control_light_tool, discover_printers_tool, print_stl_tool, get_print_status_tool, iterate_cad_tool] + tools_list[0]['function_declarations'][1:]}]
+run_browser_extension_agent = {
+    "name": "run_browser_extension_agent",
+    "description": (
+        "Acessa e interage com abas abertas no Chrome do usuário via extensão segura. "
+        "Use para: ler emails (Gmail, Outlook), resumir páginas, interagir com sites onde o usuário já está logado, "
+        "acessar sistemas internos ou qualquer aba já aberta. "
+        "PREFIRA esta ferramenta em vez de run_web_agent quando o usuário pede algo em sites onde já está logado. "
+        "Requer que a extensão 'Jarvis Browser Bridge' esteja instalada e o Chrome aberto."
+    ),
+    "parameters": {
+        "type": "OBJECT",
+        "properties": {
+            "prompt": {"type": "STRING", "description": "Instrução detalhada do que fazer no Chrome. Ex: 'Abra o Gmail e me dê um resumo dos emails desta manhã'."}
+        },
+        "required": ["prompt"]
+    },
+    "behavior": "NON_BLOCKING"
+}
+
+tools = [{'google_search': {}}, {"function_declarations": [generate_cad, run_web_agent, run_browser_extension_agent, open_on_mac_tool, run_mac_agent, create_project_tool, switch_project_tool, list_projects_tool, list_smart_devices_tool, control_light_tool, discover_printers_tool, print_stl_tool, get_print_status_tool, iterate_cad_tool] + tools_list[0]['function_declarations'][1:]}]
 
 # --- CONFIG UPDATE: Enabled Transcription ---
 config = types.LiveConnectConfig(
@@ -247,10 +266,11 @@ from cad_agent import CadAgent
 from web_agent import WebAgent
 from mac_agent import MacAgent
 from kasa_agent import KasaAgent
+from browser_extension_agent import BrowserExtensionAgent
 from printer_agent import PrinterAgent
 
 class AudioLoop:
-    def __init__(self, video_mode=DEFAULT_MODE, on_audio_data=None, on_video_frame=None, on_cad_data=None, on_web_data=None, on_mac_data=None, on_transcription=None, on_tool_confirmation=None, on_cad_status=None, on_cad_thought=None, on_project_update=None, on_device_update=None, on_error=None, input_device_index=None, input_device_name=None, output_device_index=None, kasa_agent=None):
+    def __init__(self, video_mode=DEFAULT_MODE, on_audio_data=None, on_video_frame=None, on_cad_data=None, on_web_data=None, on_mac_data=None, on_transcription=None, on_tool_confirmation=None, on_cad_status=None, on_cad_thought=None, on_project_update=None, on_device_update=None, on_error=None, input_device_index=None, input_device_name=None, output_device_index=None, kasa_agent=None, browser_extension_agent=None):
         self.video_mode = video_mode
         self.on_audio_data = on_audio_data
         self.on_video_frame = on_video_frame
@@ -298,6 +318,7 @@ class AudioLoop:
         self.mac_agent = MacAgent()
         self.kasa_agent = kasa_agent if kasa_agent else KasaAgent()
         self.printer_agent = PrinterAgent()
+        self.browser_extension_agent = browser_extension_agent  # Injetado via server.py; pode ser None
 
         self.send_text_task = None
         self.stop_event = asyncio.Event()
@@ -312,6 +333,9 @@ class AudioLoop:
         # VAD State
         self._is_speaking = False
         self._silence_start_time = None
+
+        # Echo Suppression State: tracks when model last played audio
+        self._model_speaking_last_time = 0
         
         # Initialize ProjectManager
         from project_manager import ProjectManager
@@ -455,6 +479,10 @@ class AudioLoop:
         VAD_THRESHOLD = 800 # Adj based on mic sensitivity (800 is conservative for 16-bit)
         SILENCE_DURATION = 0.5 # Seconds of silence to consider "done speaking"
 
+        # Echo Suppression Constants
+        ECHO_SUPPRESSION_SECS = 1.2  # Suppress mic for this long after model finishes speaking
+        INTERRUPT_VAD_THRESHOLD = 2500  # RMS threshold to allow user interruption during model speech
+
         while True:
             if self.paused:
                 await asyncio.sleep(0.1)
@@ -463,13 +491,7 @@ class AudioLoop:
             try:
                 data = await asyncio.to_thread(self.audio_stream.read, CHUNK_SIZE, **kwargs)
 
-                # 1. Send Audio
-                if self.out_queue:
-                    await self.out_queue.put({"data": data, "mime_type": "audio/pcm"})
-
-                # 2. VAD Logic for Video
-                # rms = audioop.rms(data, 2)
-                # Replacement for audioop.rms(data, 2)
+                # 1. Calculate RMS first (used for both VAD and echo suppression decisions)
                 count = len(data) // 2
                 if count > 0:
                     shorts = struct.unpack(f"<{count}h", data)
@@ -477,6 +499,18 @@ class AudioLoop:
                     rms = int(math.sqrt(sum_squares / count))
                 else:
                     rms = 0
+
+                # 2. Send Audio (with echo suppression)
+                # If model recently spoke, only forward mic audio if the user is clearly
+                # speaking loudly enough to be an intentional interruption (not echo).
+                model_recently_spoke = (time.time() - self._model_speaking_last_time) < ECHO_SUPPRESSION_SECS
+                if self.out_queue:
+                    if not model_recently_spoke:
+                        await self.out_queue.put({"data": data, "mime_type": "audio/pcm"})
+                    elif rms > INTERRUPT_VAD_THRESHOLD:
+                        # User is interrupting: reset suppression window and forward audio
+                        self._model_speaking_last_time = 0
+                        await self.out_queue.put({"data": data, "mime_type": "audio/pcm"})
 
                 # 3. VAD Logic for Video
                 if rms > VAD_THRESHOLD:
@@ -694,6 +728,29 @@ class AudioLoop:
         except Exception as e:
             print(f"[JARVIS DEBUG] [ERR] Failed to send mac agent result to model: {e}")
 
+    async def handle_browser_extension_request(self, prompt):
+        print(f"[JARVIS DEBUG] [EXT] Browser Extension Task: '{prompt}'")
+
+        if not self.browser_extension_agent:
+            result = "Erro: Chrome Extension não conectada. Instale a extensão 'Jarvis Browser Bridge' e abra o Chrome."
+            try:
+                await self.session.send(input=f"System Notification: {result}", end_of_turn=True)
+            except Exception:
+                pass
+            return
+
+        async def update_frontend(image_b64, log_text):
+            if self.on_web_data:
+                self.on_web_data({"image": image_b64, "log": f"[Chrome] {log_text}"})
+
+        result = await self.browser_extension_agent.run_task(prompt, update_callback=update_frontend)
+        print(f"[JARVIS DEBUG] [EXT] Browser Extension Task Returned: {result}")
+
+        try:
+            await self.session.send(input=f"System Notification: Browser Extension Agent concluído.\nResultado: {result}", end_of_turn=True)
+        except Exception as e:
+            print(f"[JARVIS DEBUG] [ERR] Failed to send extension result to model: {e}")
+
     async def receive_audio(self):
         "Background task to reads from the websocket and write pcm chunks to the output queue"
         try:
@@ -703,6 +760,7 @@ class AudioLoop:
                     # 1. Handle Audio Data
                     if data := response.data:
                         self.audio_in_queue.put_nowait(data)
+                        self._model_speaking_last_time = time.time()  # Suppress mic immediately when model audio arrives
                         # NOTE: 'continue' removed here to allow processing transcription/tools in same packet
 
                     # 2. Handle Transcription (User & Model)
@@ -903,6 +961,16 @@ class AudioLoop:
                                         id=fc.id,
                                         name=fc.name,
                                         response={"result": "Controle do Mac iniciado. Não responda a esta mensagem."}
+                                    )
+                                    function_responses.append(function_response)
+
+                                elif fc.name == "run_browser_extension_agent":
+                                    print(f"[ADA DEBUG] [TOOL] Tool Call: 'run_browser_extension_agent' with prompt='{prompt}'")
+                                    asyncio.create_task(self.handle_browser_extension_request(prompt))
+                                    function_response = types.FunctionResponse(
+                                        id=fc.id,
+                                        name=fc.name,
+                                        response={"result": "Chrome Extension Agent iniciado. Não responda a esta mensagem."}
                                     )
                                     function_responses.append(function_response)
 
@@ -1242,6 +1310,7 @@ class AudioLoop:
             if self.on_audio_data:
                 self.on_audio_data(bytestream)
             await asyncio.to_thread(stream.write, bytestream)
+            self._model_speaking_last_time = time.time()  # Echo suppression: mark last audio played
 
     async def get_frames(self):
         cap = await asyncio.to_thread(cv2.VideoCapture, 0, cv2.CAP_AVFOUNDATION)

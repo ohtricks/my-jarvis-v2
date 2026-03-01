@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Jarvis Browser Bridge",
+  "version": "1.0",
+  "description": "Conecta o Jarvis ao Chrome para ler e interagir com qualquer aba.",
+
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+
+  "host_permissions": [
+    "<all_urls>",
+    "http://localhost:8000/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "action": {
+    "default_title": "Jarvis Browser Bridge",
+    "default_popup": "popup.html"
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": ["lib/socket.io.min.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

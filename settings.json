@@ -1,5 +1,5 @@
 {
-    "face_auth_enabled": true,
+    "face_auth_enabled": false,
     "tool_permissions": {
         "generate_cad": true,
         "run_web_agent": true,
@@ -10,7 +10,8 @@
         "read_file": true,
         "create_project": true,
         "switch_project": true,
-        "list_projects": true
+        "list_projects": true,
+        "run_browser_extension_agent": true
     },
     "printers": [],
     "kasa_devices": [],

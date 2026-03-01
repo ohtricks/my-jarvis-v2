@@ -387,17 +387,8 @@ function App() {
             console.log("Auth Status:", data);
             setIsAuthenticated(data.authenticated);
             if (data.authenticated) {
-                // If authenticated, hide lock screen with animation (handled by component if visible)
-                // But simpler: just hide it
-                // Actually, wait for animation if it WAS visible.
-                // For now, let's just assume if authenticated -> hide
-                // But we want the component to invoke onAnimationComplete.
-                // If we are starting up (and face auth disabled), we want it FALSE immediately.
-                if (!isLockScreenVisible) {
-                    // Do nothing, already hidden
-                }
+                setIsLockScreenVisible(false);
             } else {
-                // If NOT authenticated, show lock screen
                 setIsLockScreenVisible(true);
             }
         });

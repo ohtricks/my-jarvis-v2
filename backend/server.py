@@ -26,6 +26,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import jarvis
 from authenticator import FaceAuthenticator
 from kasa_agent import KasaAgent
+from browser_extension_agent import BrowserExtensionAgent
 
 # Create a Socket.IO server
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
@@ -56,6 +57,8 @@ audio_loop = None
 loop_task = None
 authenticator = None
 kasa_agent = KasaAgent()
+extension_sid = None           # Socket ID da Chrome Extension quando conectada
+browser_extension_agent = None # Instância do BrowserExtensionAgent
 SETTINGS_FILE = "settings.json"
 
 DEFAULT_SETTINGS = {
@@ -70,7 +73,8 @@ DEFAULT_SETTINGS = {
         "read_file": True,
         "create_project": True,
         "switch_project": True,
-        "list_projects": True
+        "list_projects": True,
+        "run_browser_extension_agent": True
     },
     "printers": [], # List of {host, port, name, type}
     "kasa_devices": [], # List of {ip, alias, model}
@@ -214,8 +218,54 @@ async def connect(sid, environ):
             await sio.emit('auth_status', {'authenticated': True})
 
 @sio.event
+async def extension_register(sid, data):
+    """Chrome Extension se registra quando conecta ao Socket.IO."""
+    global extension_sid, browser_extension_agent
+
+    extension_sid = sid
+    print(f"[Extension] Chrome Extension conectada: {sid}")
+
+    async def emit_to_extension(payload: dict):
+        await sio.emit('extension_command', payload, room=extension_sid)
+
+    async def emit_extension_status(label: str, progress: float, active: bool = True):
+        await sio.emit('extension_task_status', {
+            'label':    label,
+            'progress': round(progress, 2),
+            'active':   active,
+        }, room=extension_sid)
+
+    browser_extension_agent = BrowserExtensionAgent(
+        emit_fn=emit_to_extension,
+        status_fn=emit_extension_status,
+    )
+
+    # Atualiza o AudioLoop se já estiver rodando
+    if audio_loop:
+        audio_loop.browser_extension_agent = browser_extension_agent
+
+    await sio.emit('status', {'msg': 'Chrome Extension registrada com sucesso'}, room=sid)
+
+@sio.event
+async def extension_result(sid, data):
+    """Recebe resultado de um comando executado pela Chrome Extension."""
+    if browser_extension_agent and data.get('request_id'):
+        browser_extension_agent.resolve(
+            request_id=data['request_id'],
+            result=data.get('result'),
+            error=data.get('error'),
+        )
+
+@sio.event
 async def disconnect(sid):
+    global extension_sid, browser_extension_agent
     print(f"Client disconnected: {sid}")
+    if sid == extension_sid:
+        extension_sid = None
+        browser_extension_agent = None
+        if audio_loop:
+            audio_loop.browser_extension_agent = None
+        print("[Extension] Chrome Extension desconectada")
 
 @sio.event
 async def start_audio(sid, data=None):
@@ -337,7 +387,8 @@ async def start_audio(sid, data=None):
 
             input_device_index=device_index,
             input_device_name=device_name,
-            kasa_agent=kasa_agent
+            kasa_agent=kasa_agent,
+            browser_extension_agent=browser_extension_agent
         )
         print("AudioLoop initialized successfully.")
 
